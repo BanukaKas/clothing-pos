@@ -42,9 +42,13 @@ interface AppContextType {
 
   // Products
   products: Product[];
-  addProduct: (product: Omit<Product, 'id' | 'createdAt'>) => void;
-  updateProduct: (id: string, product: Partial<Product>) => void;
-  toggleProductStatus: (id: string) => void;
+  addProduct: (product: Omit<Product, 'id' | 'createdAt'>) => void | Promise<void>;
+  updateProduct: (id: string, product: Partial<Product>) => void | Promise<void>;
+  toggleProductStatus: (id: string) => void | Promise<void>;
+  deleteProduct: (id: string) => void | Promise<void>;
+  refreshDatabaseData?: () => Promise<void>;
+
+
 
   // Categories
   categories: Category[];
@@ -65,7 +69,8 @@ interface AppContextType {
     paymentMethod: PaymentMethod;
     cashReceived?: number;
     notes?: string;
-  }) => Sale | null;
+  }) => Promise<Sale | null> | (Sale | null);
+
 
   // Sales
   sales: Sale[];
@@ -80,7 +85,8 @@ interface AppContextType {
     quantity: number;
     reason: string;
     performedBy: string;
-  }) => void;
+  }) => void | Promise<void>;
+
 
   // Customers
   customers: Customer[];
@@ -145,7 +151,208 @@ const AppContext = createContext<AppContextType | undefined>(undefined);
 
 const SETTINGS_STORAGE_KEY = 'mint_pos_store_settings_v1';
 
+function mapDbProductToProduct(p: any): Product {
+  const variants = p.variants || [];
+  const sizes = Array.from(new Set(variants.map((v: any) => v.size as ClothingSize)));
+  const colorsMap = new Map<string, { name: string; hex: string }>();
+  for (const v of variants) {
+    if (v.color_name) {
+      colorsMap.set(v.color_name, { name: v.color_name, hex: v.color_hex || '#000000' });
+    }
+  }
+
+  const mappedVariants = variants.map((v: any) => ({
+    id: v.id,
+    size: v.size as ClothingSize,
+    color: v.color_name,
+    sku: v.sku,
+    barcode: v.barcode,
+    stock: v.stock,
+  }));
+
+  const totalStock = variants.reduce((sum: number, v: any) => sum + (v.stock || 0), 0);
+
+  return {
+    id: p.id,
+    name: p.name,
+    sku: p.sku,
+    barcode: p.barcode,
+    category: p.category,
+    brand: p.brand || 'MINT FASHION',
+    description: p.description || '',
+    purchaseCost: p.purchase_cost ?? p.purchaseCost ?? 0,
+    sellingPrice: p.selling_price ?? p.sellingPrice ?? 0,
+    sizes: sizes.length > 0 ? (sizes as ClothingSize[]) : ['M', 'L'],
+    colors: Array.from(colorsMap.values()),
+    variants: mappedVariants,
+    stock: p.totalStock ?? totalStock,
+    reorderLevel: p.reorder_level ?? p.reorderLevel ?? 5,
+    image: p.image || '',
+    status: p.status || 'active',
+    createdAt: p.created_at || new Date().toISOString(),
+  };
+}
+
+function mapDbMovementToStockMovement(m: any): StockMovement {
+  return {
+    id: m.id,
+    productId: m.product_id || m.productId,
+    productName: m.product_name || m.productName,
+    sku: m.sku,
+    variantInfo: m.variant_info || m.variantInfo || '',
+    type: m.type,
+    quantityDelta: m.quantity_delta ?? m.quantityDelta ?? 0,
+    previousStock: m.previous_stock ?? m.previousStock ?? 0,
+    newStock: m.new_stock ?? m.newStock ?? 0,
+    reason: m.reason || '',
+    performedBy: m.performed_by || m.performedBy || 'System',
+    date: m.created_at || m.date || new Date().toISOString(),
+  };
+}
+
+function mapDbSaleToSale(s: any): Sale {
+  return {
+    id: s.id,
+    receiptNumber: s.receipt_number || s.receiptNumber,
+    createdAt: s.created_at || s.createdAt || new Date().toISOString(),
+    customerId: s.customer_id || s.customerId,
+    customerName: s.customer_name || s.customerName || 'Walk-in Customer',
+    customerPhone: s.customer_phone || s.customerPhone,
+    cashierName: s.cashier_name || s.cashierName || 'Cashier',
+    items: (s.items || []).map((it: any) => ({
+      productId: it.product_id || it.productId,
+      name: it.product_name || it.name,
+      sku: it.sku,
+      size: it.size as ClothingSize,
+      color: it.color,
+      price: it.unit_price ?? it.price ?? 0,
+      cost: it.unit_cost ?? it.cost ?? 0,
+      quantity: it.quantity,
+      total: it.line_total ?? it.total ?? ((it.unit_price || it.price || 0) * it.quantity),
+    })),
+    subtotal: s.subtotal,
+    discount: s.discount || 0,
+    tax: s.tax || 0,
+    total: s.total,
+    paymentMethod: s.payment_method || s.paymentMethod || 'cash',
+    cashReceived: s.cash_received ?? s.cashReceived,
+    changeGiven: s.change_given ?? s.changeGiven,
+    status: s.status || 'completed',
+    notes: s.notes,
+  };
+}
+
+function mapDbCustomerToCustomer(c: any): Customer {
+  return {
+    id: c.id,
+    name: c.name,
+    phone: c.phone || '',
+    email: c.email || '',
+    address: c.address || '',
+    totalPurchases: c.total_purchases ?? c.totalPurchases ?? 0,
+    orderCount: c.order_count ?? c.orderCount ?? 0,
+    loyaltyPoints: c.loyalty_points ?? c.loyaltyPoints ?? 0,
+    createdAt: c.created_at || c.createdAt || new Date().toISOString().split('T')[0],
+  };
+}
+
+function mapDbSupplierToSupplier(s: any): Supplier {
+  let categoriesSupplied: string[] = [];
+  try {
+    if (typeof s.categories_supplied === 'string') {
+      categoriesSupplied = JSON.parse(s.categories_supplied);
+    } else if (Array.isArray(s.categories_supplied)) {
+      categoriesSupplied = s.categories_supplied;
+    } else if (Array.isArray(s.categoriesSupplied)) {
+      categoriesSupplied = s.categoriesSupplied;
+    }
+  } catch {
+    categoriesSupplied = ['Apparel'];
+  }
+
+  return {
+    id: s.id,
+    name: s.name,
+    contactPerson: s.contact_person || s.contactPerson || '',
+    phone: s.phone || '',
+    email: s.email || '',
+    address: s.address || '',
+    categoriesSupplied,
+    paymentTerms: s.payment_terms || s.paymentTerms || 'Net 30 Days',
+  };
+}
+
+function mapDbPurchaseToPurchase(p: any): PurchaseOrder {
+  return {
+    id: p.id,
+    reference: p.reference,
+    supplierId: p.supplier_id || p.supplierId,
+    supplierName: p.supplier_name || p.supplierName,
+    items: (p.items || []).map((it: any) => ({
+      productName: it.product_name || it.productName,
+      sku: it.sku,
+      quantity: it.quantity,
+      unitCost: it.unit_cost ?? it.unitCost ?? 0,
+      totalCost: it.total_cost ?? it.totalCost ?? ((it.unit_cost || 0) * it.quantity),
+    })),
+    totalCost: p.total_cost ?? p.totalCost ?? 0,
+    status: p.status,
+    orderDate: p.order_date || p.orderDate || new Date().toISOString().split('T')[0],
+    expectedDate: p.expected_date || p.expectedDate,
+  };
+}
+
+function mapDbReturnToReturn(r: any): ReturnRecord {
+  return {
+    id: r.id,
+    returnNumber: r.return_number || r.returnNumber,
+    originalReceiptNumber: r.original_receipt_number || r.originalReceiptNumber,
+    saleId: r.sale_id || r.saleId,
+    items: (r.items || []).map((it: any) => ({
+      productName: it.product_name || it.productName,
+      sku: it.sku,
+      size: it.size as ClothingSize,
+      color: it.color,
+      quantity: it.quantity,
+      price: it.unit_price ?? it.price ?? 0,
+      reason: it.reason || r.reason || '',
+    })),
+    refundAmount: r.refund_amount ?? r.refundAmount ?? 0,
+    refundMethod: r.refund_method || r.refundMethod || 'cash',
+    customerName: r.customer_name || r.customerName || 'Walk-in Customer',
+    date: r.created_at || r.date || new Date().toISOString(),
+    processedBy: r.processed_by || r.processedBy || 'Cashier',
+  };
+}
+
+function mapDbExpenseToExpense(e: any): Expense {
+  return {
+    id: e.id,
+    category: e.category,
+    description: e.description,
+    amount: e.amount,
+    paymentMethod: e.payment_method || e.paymentMethod || 'cash',
+    date: e.expense_date || e.date || new Date().toISOString().split('T')[0],
+    recordedBy: e.recorded_by || e.recordedBy || 'Admin',
+    reference: e.reference,
+  };
+}
+
+function mapDbUserToUser(u: any): UserAccount {
+  return {
+    id: u.id,
+    name: u.name,
+    username: u.username,
+    email: u.email || '',
+    role: u.role,
+    status: u.status || 'active',
+    lastLogin: u.last_login || u.lastLogin || 'Never',
+  };
+}
+
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+
+
   const [currentPage, setCurrentPage] = useState<PageId>('dashboard');
   const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(false);
   const [globalSearch, setGlobalSearch] = useState<string>('');
@@ -189,8 +396,85 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [stockMovements, setStockMovements] = useState<StockMovement[]>(initialStockMovements);
   const [currentUser] = useState<UserAccount>(initialUsers[0]); // Amara Perera (Store Manager)
 
+  const loadDatabaseData = async () => {
+    if (!window.electronAPI) return;
+    try {
+      const [
+        dbProds,
+        dbMovements,
+        dbCats,
+        dbSales,
+        dbCusts,
+        dbSuppliers,
+        dbPurchases,
+        dbReturns,
+        dbExpenses,
+        dbUsers,
+      ] = await Promise.all([
+        window.electronAPI.getProducts(),
+        window.electronAPI.getStockMovements(),
+        window.electronAPI.getCategories(),
+        window.electronAPI.getSales(),
+        window.electronAPI.getCustomers(),
+        window.electronAPI.getSuppliers(),
+        window.electronAPI.getPurchases(),
+        window.electronAPI.getReturns(),
+        window.electronAPI.getExpenses(),
+        window.electronAPI.getUsers(),
+      ]);
+
+      if (dbProds && dbProds.length > 0) {
+        setProducts(dbProds.map(mapDbProductToProduct));
+      }
+      if (dbMovements && dbMovements.length > 0) {
+        setStockMovements(dbMovements.map(mapDbMovementToStockMovement));
+      }
+      if (dbCats && dbCats.length > 0) {
+        setCategories(
+          dbCats.map((c: any) => ({
+            id: c.id,
+            name: c.name,
+            slug: c.slug,
+            description: c.description || '',
+            productCount: 0,
+            accentColor: c.accent_color || '#059669',
+          }))
+        );
+      }
+      if (dbSales && dbSales.length > 0) {
+        setSales(dbSales.map(mapDbSaleToSale));
+      }
+      if (dbCusts && dbCusts.length > 0) {
+        setCustomers(dbCusts.map(mapDbCustomerToCustomer));
+      }
+      if (dbSuppliers && dbSuppliers.length > 0) {
+        setSuppliers(dbSuppliers.map(mapDbSupplierToSupplier));
+      }
+      if (dbPurchases && dbPurchases.length > 0) {
+        setPurchases(dbPurchases.map(mapDbPurchaseToPurchase));
+      }
+      if (dbReturns && dbReturns.length > 0) {
+        setReturns(dbReturns.map(mapDbReturnToReturn));
+      }
+      if (dbExpenses && dbExpenses.length > 0) {
+        setExpenses(dbExpenses.map(mapDbExpenseToExpense));
+      }
+      if (dbUsers && dbUsers.length > 0) {
+        setUsers(dbUsers.map(mapDbUserToUser));
+      }
+    } catch (err) {
+      console.error('Failed to load SQLite data in AppContext:', err);
+    }
+  };
+
+
+  useEffect(() => {
+    loadDatabaseData();
+  }, []);
+
   // Receipt Modal State
   const [receiptModalSale, setReceiptModalSale] = useState<Sale | null>(null);
+
 
   // Toasts
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
@@ -290,7 +574,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setCartDiscount(0);
   };
 
-  const checkout = ({
+  const checkout = async ({
     customerName,
     customerPhone,
     paymentMethod,
@@ -302,7 +586,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     paymentMethod: PaymentMethod;
     cashReceived?: number;
     notes?: string;
-  }): Sale | null => {
+  }): Promise<Sale | null> => {
+
     if (cart.length === 0) {
       showToast('error', 'Cart Empty', 'Please add products to cart before checkout.');
       return null;
@@ -325,6 +610,49 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
 
     const receiptNumber = generateReceiptNumber();
+
+    if (window.electronAPI) {
+      try {
+        const checkoutPayload = {
+          receiptNumber,
+          customerName: customerName || 'Walk-in Customer',
+          customerPhone: customerPhone || '',
+          cashierId: currentUser.id,
+          cashierName: currentUser.name,
+          items: cart.map(item => ({
+            productId: item.productId,
+            productName: item.name,
+            sku: item.sku,
+            size: item.size,
+            color: item.color,
+            quantity: item.quantity,
+            unitPrice: item.price,
+            unitCost: item.cost,
+          })),
+          subtotal,
+          discount,
+          tax,
+          total,
+          paymentMethod,
+          cashReceived: paymentMethod === 'cash' ? (cashReceived || total) : total,
+          changeGiven: changeGiven || 0,
+          notes,
+        };
+
+        const dbSale = await window.electronAPI.processCheckout(checkoutPayload);
+        const mappedSale = mapDbSaleToSale(dbSale);
+        await loadDatabaseData();
+        clearCart();
+        setReceiptModalSale(mappedSale);
+        showToast('success', 'Sale Completed!', `Receipt ${mappedSale.receiptNumber} recorded in SQLite.`);
+        return mappedSale;
+      } catch (err: any) {
+        console.error('Error processing checkout in SQLite:', err);
+        showToast('error', 'Checkout Failed', err.message || 'Transaction failed');
+        return null;
+      }
+    }
+
     const newSale: Sale = {
       id: generateId('sale'),
       receiptNumber,
@@ -353,6 +681,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       status: 'completed',
       notes,
     };
+
 
     // Deduct stock from products & log movement
     setProducts(prevProducts => {
@@ -433,17 +762,86 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   // Products CRUD
-  const addProduct = (prodData: Omit<Product, 'id' | 'createdAt'>) => {
+  const addProduct = async (prodData: Omit<Product, 'id' | 'createdAt'>) => {
+    const newId = generateId('prod');
+
+    if (window.electronAPI) {
+      try {
+        const variantsPayload = (prodData.variants || []).map(v => ({
+          size: v.size,
+          color_name: v.color,
+          color_hex: prodData.colors.find(c => c.name === v.color)?.hex || '#000000',
+          sku: v.sku,
+          barcode: `${prodData.barcode}-${v.size}`,
+          stock: v.stock,
+        }));
+
+        await window.electronAPI.createProduct({
+          product: {
+            id: newId,
+            name: prodData.name,
+            sku: prodData.sku,
+            barcode: prodData.barcode,
+            category: prodData.category,
+            brand: prodData.brand,
+            description: prodData.description,
+            purchase_cost: prodData.purchaseCost,
+            selling_price: prodData.sellingPrice,
+            reorder_level: prodData.reorderLevel,
+            image: prodData.image,
+            status: prodData.status,
+          },
+          variants: variantsPayload,
+          performedBy: currentUser.name,
+        });
+
+        await loadDatabaseData();
+        showToast('success', 'Product Created', `${prodData.name} saved to SQLite.`);
+        return;
+      } catch (err: any) {
+        console.error('Error creating product in SQLite:', err);
+        showToast('error', 'Product Creation Failed', err.message || 'Database error');
+      }
+    }
+
     const newProduct: Product = {
       ...prodData,
-      id: generateId('prod'),
+      id: newId,
       createdAt: new Date().toISOString().split('T')[0],
     };
     setProducts(prev => [newProduct, ...prev]);
     showToast('success', 'Product Created', `${newProduct.name} has been added.`);
   };
 
-  const updateProduct = (id: string, partial: Partial<Product>) => {
+  const updateProduct = async (id: string, partial: Partial<Product>) => {
+    if (window.electronAPI) {
+      try {
+        const payload: any = {};
+        if (partial.name !== undefined) payload.name = partial.name;
+        if (partial.sku !== undefined) payload.sku = partial.sku;
+        if (partial.barcode !== undefined) payload.barcode = partial.barcode;
+        if (partial.category !== undefined) payload.category = partial.category;
+        if (partial.brand !== undefined) payload.brand = partial.brand;
+        if (partial.description !== undefined) payload.description = partial.description;
+        if (partial.purchaseCost !== undefined) payload.purchase_cost = partial.purchaseCost;
+        if (partial.sellingPrice !== undefined) payload.selling_price = partial.sellingPrice;
+        if (partial.reorderLevel !== undefined) payload.reorder_level = partial.reorderLevel;
+        if (partial.image !== undefined) payload.image = partial.image;
+        if (partial.status !== undefined) payload.status = partial.status;
+
+        await window.electronAPI.updateProduct(id, {
+          product: payload,
+          performedBy: currentUser.name,
+        });
+        await loadDatabaseData();
+        showToast('success', 'Product Updated', 'Product details updated in SQLite.');
+        return;
+      } catch (err: any) {
+        console.error('Error updating product in SQLite:', err);
+        showToast('error', 'Update Failed', err.message || 'Database error');
+      }
+    }
+
     setProducts(prev =>
       prev.map(p => {
         if (p.id === id) {
@@ -455,11 +853,28 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     showToast('success', 'Product Updated', 'Product details updated successfully.');
   };
 
-  const toggleProductStatus = (id: string) => {
+  const toggleProductStatus = async (id: string) => {
+    const target = products.find(p => p.id === id);
+    if (!target) return;
+    const nextStatus = target.status === 'active' ? 'inactive' : 'active';
+
+    if (window.electronAPI) {
+      try {
+        await window.electronAPI.updateProduct(id, {
+          product: { status: nextStatus },
+          performedBy: currentUser.name,
+        });
+        await loadDatabaseData();
+        showToast('info', 'Status Changed', `${target.name} is now ${nextStatus}.`);
+        return;
+      } catch (err: any) {
+        console.error('Error toggling product status in SQLite:', err);
+      }
+    }
+
     setProducts(prev =>
       prev.map(p => {
         if (p.id === id) {
-          const nextStatus = p.status === 'active' ? 'inactive' : 'active';
           showToast('info', 'Status Changed', `${p.name} is now ${nextStatus}.`);
           return { ...p, status: nextStatus };
         }
@@ -467,6 +882,25 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       })
     );
   };
+
+  const deleteProduct = async (id: string) => {
+    if (window.electronAPI) {
+      try {
+        await window.electronAPI.deleteProduct(id);
+        await loadDatabaseData();
+        showToast('info', 'Product Deleted', 'Product removed from SQLite.');
+        return;
+      } catch (err: any) {
+        console.error('Error deleting product in SQLite:', err);
+        showToast('error', 'Delete Failed', err.message || 'Database error');
+      }
+    }
+
+    setProducts(prev => prev.filter(p => p.id !== id));
+    showToast('info', 'Product Deleted', 'Product removed.');
+  };
+
+
 
   // Categories CRUD
   const addCategory = (catData: Omit<Category, 'id' | 'productCount'>) => {
@@ -492,7 +926,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   // Stock Adjustment
-  const adjustStock = ({
+  const adjustStock = async ({
     productId,
     variantId,
     type,
@@ -507,6 +941,25 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     reason: string;
     performedBy: string;
   }) => {
+    if (window.electronAPI) {
+      try {
+        await window.electronAPI.adjustStock({
+          productId,
+          variantId,
+          type,
+          quantity,
+          reason,
+          performedBy,
+        });
+        await loadDatabaseData();
+        showToast('success', 'Stock Adjusted', 'Inventory updated and persisted to SQLite.');
+        return;
+      } catch (err: any) {
+        console.error('Error adjusting stock in SQLite:', err);
+        showToast('error', 'Adjustment Failed', err.message || 'Database error');
+      }
+    }
+
     setProducts(prev => {
       return prev.map(p => {
         if (p.id !== productId) return p;
@@ -593,6 +1046,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     showToast('success', 'Stock Adjusted', 'Inventory updated successfully.');
   };
+
 
   // Customers
   const addCustomer = (cust: Omit<Customer, 'id' | 'totalPurchases' | 'orderCount' | 'loyaltyPoints' | 'createdAt'>) => {
@@ -772,7 +1226,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         addProduct,
         updateProduct,
         toggleProductStatus,
+        deleteProduct,
+        refreshDatabaseData: loadDatabaseData,
         categories,
+
         addCategory,
         updateCategory,
         cart,

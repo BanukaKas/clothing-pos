@@ -1,0 +1,63 @@
+======================================================================
+MINT FASHION POS — WINDOWS DESKTOP RELEASE NOTES
+======================================================================
+Application Name   : MINT FASHION POS
+Version            : 1.1.0
+Build Date         : 2026-10-30 21:04:53
+Target Platform    : Windows 10 / 11 (64-bit x64)
+Database Engine    : SQLite 3 (WebAssembly, 100% Offline)
+Installer File     : MINT-FASHION-POS-Setup.exe
+File Size          : 98.70 MB
+
+NEW FEATURES & ENHANCEMENTS IN THIS RELEASE:
+----------------------------------------------------------------------
+1. COMPLETE BARCODE SYSTEM:
+   - Automatic unique barcode generation for every new product and variant.
+   - Dual support for Code 128 (alphanumeric) and EAN-13 (with Modulo-10 check digit).
+   - Real-time duplicate barcode detection across products and variants.
+   - Manual barcode editing with inline validation.
+   - Controlled barcode regeneration with explicit confirmation dialogs.
+   - Permanent SQLite persistence in products and product_variants tables.
+
+2. NEW BARCODE MANAGEMENT STUDIO:
+   - Dedicated frontend page for viewing all product and variant barcodes.
+   - Multi-criteria filtering by Category, Garment Size, Color, and Barcode Status.
+   - Batch selection for multi-product barcode printing.
+   - Real-time SVG barcode rendering and inspection.
+   - CSV export of all garment barcodes and stock quantities.
+
+3. THERMAL BARCODE LABEL PRINTING:
+   - Support for 40x30mm, 50x25mm, 60x40mm and user-defined custom dimensions.
+   - Scannable vector barcode graphics (generated via JsBarcode).
+   - Toggleable label fields: Store Name, Product Title, Variant (Size/Color),
+     SKU, Selling Price, Barcode Graphic, and Human-Readable Digits.
+   - Print quantity control per item and bulk quantity multiplier.
+   - 100% offline thermal printing.
+
+4. SAFE DATABASE MIGRATIONS & CUSTOMER DATA PROTECTION:
+   - Database permanently stored in %APPDATA%/mint-fashion-pos/database/mint-fashion.db.
+   - Automatic pre-migration backup before applying schema changes.
+   - Incremental migration 002 for variant barcodes and index optimization.
+   - Zero-data-loss upgrades: new installers preserve all customer inventory, sales,
+     customers, settings, and users.
+   - deleteAppDataOnUninstall is disabled to prevent accidental data deletion.
+
+5. POS SCANNER INTEGRATION:
+   - Scans both base garment barcodes and variant-specific barcodes.
+   - Direct addition of scanned size and color combinations to the active cart.
+
+INSTALLATION INSTRUCTIONS:
+----------------------------------------------------------------------
+1. Double-click "MINT-FASHION-POS-Setup.exe".
+2. Follow the setup wizard to complete the installation.
+3. Launch "MINT FASHION POS" from the desktop or Start Menu.
+4. Default Administrator login:
+   Username: admin
+   Password: admin123
+
+UPGRADE INSTRUCTIONS FOR EXISTING CUSTOMERS:
+----------------------------------------------------------------------
+1. Do not uninstall the old version.
+2. Run "MINT-FASHION-POS-Setup.exe" to overwrite application binaries.
+3. All existing business records, products, sales, and accounts remain intact.
+======================================================================

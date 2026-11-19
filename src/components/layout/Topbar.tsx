@@ -18,6 +18,7 @@ const pageTitleMap: Record<PageId, { title: string; subtitle: string }> = {
   dashboard: { title: 'Executive Dashboard', subtitle: 'Retail analytics, revenue & stock metrics' },
   pos: { title: 'Point of Sale (POS)', subtitle: 'Checkout terminal, barcode scanning & cart' },
   products: { title: 'Product Catalog', subtitle: 'Manage clothing items, sizes, colors and pricing' },
+  'barcode-management': { title: 'Barcode Studio', subtitle: 'Label generation, Code 128 / EAN-13 & thermal printing' },
   categories: { title: 'Category Management', subtitle: 'Organize collections & merchandising categories' },
   inventory: { title: 'Inventory & Stock Control', subtitle: 'Stock audit, variant tracking & adjustments' },
   sales: { title: 'Sales & Receipts History', subtitle: 'Past orders, payments and printable receipts' },

@@ -74,12 +74,45 @@ export const PosPage: React.FC = () => {
     });
   }, [products, searchQuery, selectedCategory]);
 
-  // Handle barcode scanner input simulation
+  // Handle barcode scanner input simulation (supports product & variant barcodes)
   const handleBarcodeSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!barcodeInput.trim()) return;
 
     const cleanCode = barcodeInput.trim();
+
+    // 1. First check if barcode matches a specific product variant
+    let matchedVariantProduct: Product | undefined;
+    let matchedVariantSize: ClothingSize | undefined;
+    let matchedVariantColor: string | undefined;
+
+    for (const p of products) {
+      for (const v of p.variants || []) {
+        if (
+          (v.barcode && v.barcode.toLowerCase() === cleanCode.toLowerCase()) ||
+          v.sku.toLowerCase() === cleanCode.toLowerCase()
+        ) {
+          matchedVariantProduct = p;
+          matchedVariantSize = v.size;
+          matchedVariantColor = v.color;
+          break;
+        }
+      }
+      if (matchedVariantProduct) break;
+    }
+
+    if (matchedVariantProduct && matchedVariantSize && matchedVariantColor) {
+      addToCart(matchedVariantProduct, matchedVariantSize, matchedVariantColor, 1);
+      setBarcodeInput('');
+      showToast(
+        'success',
+        'Garment Scanned',
+        `Added ${matchedVariantProduct.name} (${matchedVariantSize} / ${matchedVariantColor}) to cart.`
+      );
+      return;
+    }
+
+    // 2. Otherwise check base product barcode or SKU
     const matched = products.find(
       p => p.barcode === cleanCode || p.sku.toLowerCase() === cleanCode.toLowerCase()
     );
@@ -89,6 +122,7 @@ export const PosPage: React.FC = () => {
       const defaultColor = matched.colors[0]?.name || 'Standard';
       addToCart(matched, defaultSize, defaultColor, 1);
       setBarcodeInput('');
+      showToast('success', 'Garment Scanned', `Added ${matched.name} to cart.`);
     } else {
       showToast('error', 'Barcode Not Found', `No garment found matching barcode: ${cleanCode}`);
     }
@@ -149,8 +183,8 @@ export const PosPage: React.FC = () => {
     setIsCheckoutModalOpen(true);
   };
 
-  const handleCompleteSale = () => {
-    const sale = checkout({
+  const handleCompleteSale = async () => {
+    const sale = await checkout({
       customerName: selectedCustomer,
       customerPhone,
       paymentMethod,
@@ -164,6 +198,7 @@ export const PosPage: React.FC = () => {
       setCheckoutNotes('');
     }
   };
+
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 h-[calc(100vh-6.5rem)] pb-4 animate-modal">

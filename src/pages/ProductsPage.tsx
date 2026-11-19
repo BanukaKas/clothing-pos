@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { formatCurrency } from '../utils/formatters';
+import { generateCode128, generateEan13 } from '../utils/barcode';
 import type { Product, ClothingSize } from '../types';
 
 const allAvailableSizes: ClothingSize[] = ['XS', 'S', 'M', 'L', 'XL', 'XXL', '28', '30', '32', '34', '36', '38'];
@@ -101,10 +102,11 @@ export const ProductsPage: React.FC = () => {
 
   const openAddModal = () => {
     setEditingProduct(null);
+    const initialBarcode = generateCode128('MF');
     setFormData({
       name: '',
       sku: `MNT-CL-${Math.floor(100 + Math.random() * 900)}`,
-      barcode: `89012345${Math.floor(1000 + Math.random() * 9000)}`,
+      barcode: initialBarcode,
       category: categories[0]?.name || 'Shirts & Tops',
       brand: 'Mint Basics',
       description: '',
@@ -166,13 +168,14 @@ export const ProductsPage: React.FC = () => {
         image: formData.image,
       });
     } else {
-      // Generate variants for combinations of sizes and colors
+      // Generate variants for combinations of sizes and colors with unique barcodes
       const newVariants = formData.sizes.flatMap((s, sIdx) =>
         formData.colors.map((c, cIdx) => ({
           id: `var-new-${sIdx}-${cIdx}`,
           size: s,
           color: c.name,
           sku: `${formData.sku}-${s}-${c.name.substring(0, 3).toUpperCase()}`,
+          barcode: `${formData.barcode}-${s}-${c.name.substring(0, 3).toUpperCase()}`,
           stock: Math.floor(formData.stock / (formData.sizes.length * formData.colors.length)) || 2,
         }))
       );
@@ -538,12 +541,43 @@ export const ProductsPage: React.FC = () => {
                 </div>
 
                 <div>
-                  <label className="font-bold text-slate-700 block mb-1">Barcode</label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="font-bold text-slate-700">Barcode</label>
+                    <div className="flex items-center space-x-1.5">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (editingProduct && !window.confirm('Regenerating barcode will change this garment tag. Continue?')) {
+                            return;
+                          }
+                          setFormData({ ...formData, barcode: generateCode128('MF') });
+                        }}
+                        className="text-[10px] font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-2 py-0.5 rounded border border-emerald-200"
+                        title="Generate unique Code 128 barcode"
+                      >
+                        + Code 128
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (editingProduct && !window.confirm('Regenerating barcode will change this garment tag. Continue?')) {
+                            return;
+                          }
+                          setFormData({ ...formData, barcode: generateEan13('200') });
+                        }}
+                        className="text-[10px] font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 px-2 py-0.5 rounded border border-blue-200"
+                        title="Generate valid 13-digit EAN-13 barcode"
+                      >
+                        + EAN-13
+                      </button>
+                    </div>
+                  </div>
                   <input
                     type="text"
                     value={formData.barcode}
                     onChange={e => setFormData({ ...formData, barcode: e.target.value })}
                     className="w-full bg-[#f8faf8] border border-slate-200 rounded-xl px-3 py-2 text-slate-900 font-mono focus:outline-none"
+                    placeholder="e.g. MF84920193 or 2001234567890"
                   />
                 </div>
 

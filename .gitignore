@@ -22,3 +22,44 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Build output
+dist-electron/
+dist/
+release/
+out/
+coverage/
+.cache/
+
+# Local environment and secrets
+.env
+.env.*
+!.env.example
+
+# Local databases and customer data
+*.db
+*.sqlite
+*.sqlite3
+*.db-wal
+*.db-shm
+database/backups/
+backups/
+
+# Generated installers and packages
+*.exe
+*.msi
+*.dmg
+*.AppImage
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+*.old
+
+# OS files
+Thumbs.db
+
+
+# Generated Electron package
+dist-package/

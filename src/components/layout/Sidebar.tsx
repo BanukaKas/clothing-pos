@@ -3,6 +3,7 @@ import {
   LayoutDashboard,
   ShoppingBag,
   Package,
+  Barcode,
   Tags,
   Boxes,
   History,
@@ -40,6 +41,7 @@ const navItems: NavItem[] = [
     badgeColor: 'bg-emerald-500 text-white',
   },
   { id: 'products', label: 'Products', icon: Package },
+  { id: 'barcode-management', label: 'Barcode Studio', icon: Barcode },
   { id: 'categories', label: 'Categories', icon: Tags },
   {
     id: 'inventory',

@@ -1,26 +1,72 @@
 {
   "name": "clothing-pos",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.1.0",
   "type": "module",
+  "main": "dist-electron/main.js",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "build:electron": "tsc -p tsconfig.electron.json && node -e \"require('fs').writeFileSync('dist-electron/package.json', JSON.stringify({type:'commonjs'}))\"",
+    "dist": "node scripts/package.js",
+    "electron:dev": "npm run build:electron && electron .",
+    "electron:build": "npm run build && npm run build:electron && electron-builder",
     "lint": "oxlint",
     "preview": "vite preview"
   },
+  "build": {
+    "appId": "com.mintfashion.pos",
+    "productName": "MINT FASHION POS",
+    "directories": {
+      "output": "dist-package"
+    },
+    "files": [
+      "dist/**/*",
+      "dist-electron/**/*",
+      "node_modules/sql.js/dist/sql-wasm.wasm",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "MINT FASHION POS",
+      "uninstallDisplayName": "MINT FASHION POS",
+      "deleteAppDataOnUninstall": false,
+      "runAfterFinish": true
+    }
+  },
   "dependencies": {
+    "@types/jsbarcode": "^3.11.4",
+    "bcryptjs": "^3.0.3",
+    "jsbarcode": "^3.12.3",
     "lucide-react": "^1.64.0",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
     "react-is": "^19.3.1",
-    "recharts": "^3.10.1"
+    "recharts": "^3.10.1",
+    "sql.js": "^1.15.2"
   },
   "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
     "@types/node": "^24.19.2",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
+    "@types/sql.js": "^1.4.11",
     "@vitejs/plugin-react": "^6.1.2",
+    "electron": "^33.4.11",
+    "electron-builder": "^26.18.0",
     "oxlint": "^1.89.0",
     "typescript": "~7.0.2",
     "vite": "^8.3.5"

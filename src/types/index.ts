@@ -2,6 +2,7 @@ export type PageId =
   | 'dashboard'
   | 'pos'
   | 'products'
+  | 'barcode-management'
   | 'categories'
   | 'inventory'
   | 'sales'
@@ -26,6 +27,7 @@ export interface ProductVariant {
   size: ClothingSize;
   color: string;
   sku: string;
+  barcode?: string;
   stock: number;
 }
 
@@ -229,3 +231,84 @@ export interface ToastMessage {
   title: string;
   message: string;
 }
+
+declare global {
+  interface Window {
+    electronAPI?: {
+      isElectron: boolean;
+      getAppInfo: () => Promise<any>;
+      testPersistence: (action: 'insert' | 'verify', payload?: any) => Promise<any>;
+      getDatabasePath: () => Promise<string | null>;
+      checkIntegrity: () => Promise<{ ok: boolean; message: string }>;
+      backupDatabase: () => Promise<{ success: boolean; filePath?: string; canceled?: boolean }>;
+      restoreDatabase: () => Promise<{ success: boolean; filePath?: string; canceled?: boolean }>;
+
+      getProducts: () => Promise<any[]>;
+      getProductById: (id: string) => Promise<any>;
+      getProductByBarcode: (barcode: string) => Promise<any>;
+      createProduct: (productData: any) => Promise<any>;
+      updateProduct: (id: string, productData: any) => Promise<any>;
+      deleteProduct: (id: string) => Promise<boolean>;
+      getCategories: () => Promise<any[]>;
+      checkBarcodeUnique: (barcode: string, excludeProductId?: string, excludeVariantId?: string) => Promise<{ isUnique: boolean; existingProduct?: string; existingVariant?: string }>;
+      generateUniqueBarcode: (format?: 'CODE128' | 'EAN13', prefix?: string) => Promise<string>;
+      updateVariantBarcode: (variantId: string, barcode: string) => Promise<boolean>;
+      regenerateBarcode: (id: string, type: 'product' | 'variant', format?: 'CODE128' | 'EAN13') => Promise<string>;
+      updateProductBarcodes: (productId: string, productBarcode: string, variantBarcodes: { variantId: string; barcode: string }[]) => Promise<boolean>;
+
+      getStockMovements: (productId?: string) => Promise<any[]>;
+      adjustStock: (adjustmentData: any) => Promise<any>;
+      getLowStock: () => Promise<any[]>;
+      getValuation: () => Promise<any>;
+
+      getSales: () => Promise<any[]>;
+      getSaleById: (id: string) => Promise<any>;
+      processCheckout: (checkoutData: any) => Promise<any>;
+
+      getReturns: () => Promise<any[]>;
+      getReturnById: (id: string) => Promise<any>;
+      processReturn: (returnData: any) => Promise<any>;
+
+      getCustomers: () => Promise<any[]>;
+      getCustomerById: (id: string) => Promise<any>;
+      createCustomer: (customerData: any) => Promise<any>;
+      updateCustomer: (id: string, customerData: any) => Promise<any>;
+
+      getSuppliers: () => Promise<any[]>;
+      getPurchases: () => Promise<any[]>;
+      getPurchaseById: (id: string) => Promise<any>;
+      createPurchase: (purchaseData: any) => Promise<any>;
+      receivePurchase: (purchaseId: string, receivedBy: string) => Promise<any>;
+      cancelPurchase: (purchaseId: string) => Promise<any>;
+
+      getExpenses: (filter?: any) => Promise<any[]>;
+      createExpense: (expenseData: any) => Promise<any>;
+      deleteExpense: (id: string) => Promise<boolean>;
+      getExpenseSummary: () => Promise<any>;
+
+      getCurrentSession: () => Promise<any>;
+      openCashSession: (sessionData: any) => Promise<any>;
+      closeCashSession: (sessionData: any) => Promise<any>;
+      getAllSessions: () => Promise<any[]>;
+
+      getDashboardSummary: () => Promise<any>;
+      getCategorySales: () => Promise<any[]>;
+      getTopProducts: (limit?: number) => Promise<any[]>;
+      getPaymentBreakdown: () => Promise<any[]>;
+      getDailySales: (days?: number) => Promise<any[]>;
+
+      getStoreProfile: () => Promise<any>;
+      updateStoreProfile: (profile: any) => Promise<any>;
+      getAllSettings: () => Promise<Record<string, string>>;
+      updateSettings: (settingsMap: Record<string, string>) => Promise<boolean>;
+
+      getUsers: () => Promise<any[]>;
+      authenticateUser: (credentials: { username: string; password: string }) => Promise<any>;
+      createUser: (userData: any) => Promise<any>;
+      updateUser: (id: string, userData: any) => Promise<any>;
+      deleteUser: (id: string) => Promise<boolean>;
+      getRoles: () => Promise<any[]>;
+    };
+  }
+}
+

@@ -8,6 +8,7 @@ import { PrintableReceipt } from './components/receipt/PrintableReceipt';
 import { DashboardPage } from './pages/DashboardPage';
 import { PosPage } from './pages/PosPage';
 import { ProductsPage } from './pages/ProductsPage';
+import { BarcodeManagementPage } from './pages/BarcodeManagementPage';
 import { CategoriesPage } from './pages/CategoriesPage';
 import { InventoryPage } from './pages/InventoryPage';
 import { SalesHistoryPage } from './pages/SalesHistoryPage';
@@ -31,6 +32,8 @@ const AppContent: React.FC = () => {
         return <PosPage />;
       case 'products':
         return <ProductsPage />;
+      case 'barcode-management':
+        return <BarcodeManagementPage />;
       case 'categories':
         return <CategoriesPage />;
       case 'inventory':
